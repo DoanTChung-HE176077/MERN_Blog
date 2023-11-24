@@ -1,0 +1,6 @@
+stop server and type node, type below
+require('crypto').randomBytes(64).toString('hex')
+138605c699af825761d4eb5dc19ada55de47b2475a564d6e08937e8048e1bc1a34e3d6ca5aa38f4a1b17d5a7c4bb324977ce9c27e2562509dc04923efa06dce4
+ctrl d to exit node repl
+in this project, jwt will be stored in user's session in their browser so that
+thay don need to be asked to log in every time to make request
