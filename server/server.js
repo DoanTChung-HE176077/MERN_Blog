@@ -4,34 +4,27 @@ import bcrypt from "bcrypt";
 import { nanoid } from "nanoid";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
-
-//Schema below, chu y them .js
+import cors from "cors";
+// Import User schema from external file
 import User from "./Schema/User.js";
 
 const server = express();
 let PORT = 3000;
+let emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+let passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,20}$/;
 
-let emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/; // regex for email
-let passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,20}$/; // regex for password
-
-//gọi json ra đẻ bên dưới còn đọc được req.body
-//không gọi ra là bên dưới trả về undefined
-//accept json data from front end
 server.use(express.json());
+server.use(cors());
 
-//connect to mongodb
-mongoose.connect(process.env.DB_LOCATION, {
-  autoIndex: true,
-});
+// Connect to MongoDB
+mongoose.connect(process.env.DB_LOCATION, { autoIndex: true });
 
+// Function to format user data for sending as a response
 const formatDataToSend = (user) => {
-  //jwt, convert object user to hash string
-  //cái id ở đây là cái _id ở trên mongodba áy
   const access_token = jwt.sign(
     { id: user._id },
     process.env.SECRET_ACCESS_KEY
   );
-
   return {
     access_token,
     profile_img: user.personal_info.profile_img,
@@ -40,100 +33,110 @@ const formatDataToSend = (user) => {
   };
 };
 
+// Function to generate a unique username based on email
 const generateUsername = async (email) => {
-  // Kiểm tra sự tồn tại của email trong hệ thống
   let isEmailNotUnique = await User.exists({ "personal_info.email": email });
-
-  // Trường hợp số 1: Email đã tồn tại
+  console.log("======= Checking ========");
   if (isEmailNotUnique) {
-    console.log(
-      `Trường hợp số 1: Email '${email}' already exists. Username not generated.`
-    );
-    return null; // hoặc return một giá trị thích hợp tùy vào yêu cầu của bạn
+    console.log(`Email '${email}' already exists. Username not generated.`);
+    return null;
   }
 
-  // Nếu email chưa tồn tại, tạo username từ phần trước ký tự '@'
   let username = email.split("@")[0];
 
-  // Kiểm tra sự duy nhất của username trong cơ sở dữ liệu
   let isUsernameNotUnique = await User.exists({
     "personal_info.username": username,
   });
 
-  // Trường hợp số 2: Username đã tồn tại
   if (isUsernameNotUnique) {
+    console.log("Mail is not exist in system");
     console.log(
-      `Trường hợp số 2: Username '${username}' already exists. Adding nanoid.`
+      `Username '${username}' already exists. Create new user. Must re-name.`
     );
     username += "_" + nanoid().substring(0, 5);
   } else {
-    // Trường hợp số 3: Username là duy nhất
-    console.log(`Trường hợp số 3: Username '${username}' is unique.`);
+    console.log(
+      `Username '${username}' is unique. Create new user. Do not re-name`
+    );
   }
 
-  // Trả về username (đã thêm nanoid nếu cần)
   return username;
 };
 
+// Signup endpoint
 server.post("/signup", (req, res) => {
-  //1. define what receive from FE
   let { fullname, email, password } = req.body;
-  //2.validate data from front end
+
+  // Validate data from the frontend
   if (fullname.length < 3) {
     return res
       .status(403)
       .json({ error: "Full name must be at least three letters long." });
   }
-  if (!email.length) {
-    return res.status(403).json({ error: "Must enter Mail." });
+
+  if (!email.length || !emailRegex.test(email)) {
+    return res.status(403).json({ error: "Invalid email format." });
   }
-  if (!emailRegex.test(email)) {
-    return res.status(403).json({ error: "Invail Mail." });
-  }
+
   if (!passwordRegex.test(password)) {
-    res.status(403).json({
+    return res.status(403).json({
       error:
-        "Password must be 6-20 characters long with a numberic, 1 lowercase and 1 uppercase letter.",
+        "Password must be 6-20 characters long with a numeric, one lowercase, and one uppercase letter.",
     });
   }
-  //hash code password
+
+  // Hash the password
   bcrypt.hash(password, 10, async (err, hashed_password) => {
+    if (err) {
+      return res.status(500).json({ error: "Error hashing password." });
+    }
+
     let username = await generateUsername(email);
-    //create a user from Schema/User.js
+
+    // Create a user from the User schema
     let user = new User({
-      personal_info: { fullname, email, password: hashed_password, username },
+      personal_info: {
+        fullname,
+        email,
+        password: hashed_password,
+        username,
+      },
     });
+
+    // Save the user to the database
     user
       .save()
       .then((u) => {
         return res.status(200).json(formatDataToSend(u));
       })
       .catch((err) => {
-        //duplicate in mongoo -> return error code: 11000
         if (err.code == 11000) {
-          return res.status(500).json({ error: "Your email already exist!!" });
+          return res.status(500).json({ error: "Email already exists." });
         }
         return res.status(500).json({ error: err.message });
       });
   });
 });
 
+// Signin endpoint
 server.post("/signin", (req, res) => {
   let { email, password } = req.body;
-  User.findOne({ "personal_info.email": email }) //using findOne method by mongoo
+
+  // Find a user by email
+  User.findOne({ "personal_info.email": email })
     .then((user) => {
       if (!user) {
-        return res.status(403).json({ error: "Email not found man!" });
-        //throw "error"; = return res.status(403).json({ error: "Email not found man!" });
+        return res.status(403).json({ error: "Email not found." });
       }
 
-      //use bcrypt again
+      // Compare the provided password with the hashed password
       bcrypt.compare(password, user.personal_info.password, (err, result) => {
         if (err) {
-          return res
-            .status(403)
-            .json({ error: "Error occured while login, please try again" });
+          return res.status(403).json({
+            error: "Error occurred while logging in. Please try again.",
+          });
         }
+
         if (!result) {
           return res.status(403).json({ error: "Incorrect password." });
         } else {
@@ -143,10 +146,11 @@ server.post("/signin", (req, res) => {
     })
     .catch((err) => {
       console.log(err.message);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: "Internal server error." });
     });
 });
 
+// Start the server
 server.listen(PORT, () => {
-  console.log("listening on port --> " + PORT);
+  console.log("Server listening on port " + PORT);
 });
