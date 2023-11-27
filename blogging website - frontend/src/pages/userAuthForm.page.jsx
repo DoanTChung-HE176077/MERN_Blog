@@ -1,18 +1,27 @@
-import React, { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useRef, useState, useContext } from "react";
+import { Link, Navigate } from "react-router-dom";
 import InputBox from "../components/input.component";
 import googleIcon from "../imgs/google.png";
 import AnimationWrapper from "../common/page-animation";
 import { Toaster, toast } from "react-hot-toast";
 import axios from "axios";
 import { storeInSession } from "../common/session";
+import { UserContext } from "../App";
 
 const UserAuthForm = ({ myType }) => {
+  //ss7
+  let {
+    userAuth: { access_token },
+    setUserAuth,
+  } = useContext(UserContext);
+
   const userAuthThroughServer = (serverRoute, formData) => {
     axios
       .post(import.meta.env.VITE_SERVER_DOMAIN + serverRoute, formData)
       .then(({ data }) => {
         storeInSession("user", JSON.stringify(data));
+        setUserAuth(data);
+
         console.log(data);
         console.log(sessionStorage);
       })
@@ -62,7 +71,9 @@ const UserAuthForm = ({ myType }) => {
     userAuthThroughServer(serverRoute, formData);
   };
 
-  return (
+  return access_token ? (
+    <Navigate to="/" />
+  ) : (
     <>
       <AnimationWrapper keyValue={myType}>
         <section className="h-cover flex items-center justify-center">

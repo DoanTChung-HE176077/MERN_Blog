@@ -4,3 +4,12 @@ require('crypto').randomBytes(64).toString('hex')
 ctrl d to exit node repl
 in this project, jwt will be stored in user's session in their browser so that
 thay don need to be asked to log in every time to make request
+npm install dotenv --save
+
+#1:
+    let form = new FormData(authForm.current);
+    let formData = {};
+    for (let [key, value] of form.entries()) {
+      formData[key] = value;
+    }
+
