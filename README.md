@@ -1,1 +1,2 @@
-# MERN_Blog
+# Blog
+MERN-Project
