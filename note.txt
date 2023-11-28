@@ -13,3 +13,13 @@ npm install dotenv --save
       formData[key] = value;
     }
 
+
+#2
+  const handleBlur = () => {
+    setUserNavPanel(false);
+  };
+
+  làm như này sẽ gy ra vấn đề là khi clcik ko focus vào avatar,
+  vd click vào profile nó sẽ ko redirect to pro5 mà sẽ đóng lại 
+  cái drop thôi vì state ở đây đang dc rf liên tục nên đ gọi dc 
+  qua , khắc phục, dùng set time out
